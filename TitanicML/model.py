@@ -20,9 +20,13 @@ class cliModelBase(ABC):
     classifier_name = None
     help_text = None
     param_dict = None
+    selected_parameters = None
+    key = None
     @property
     def parameters(self): 
-        return cliModelBase.param_dict.keys()
+        for a_key in  cliModelBase.param_dict.keys():
+            self.key = a_key
+            yield a_key
     
     def show_option(key): 
         help_text = cliModelBase.param_dict.get(key).get("help_text")
@@ -42,9 +46,38 @@ class cliModelBase(ABC):
                     default={default}"
         return text
     
-    def generate_model(self, parameter_kwargs):
-        return self.model_base(**parameter_kwargs)
+    def generate_model(self):
+        return self.model_base(**self.select_choice)
     
+    def numeric_validate_choice(self, value): 
+        parameter_dict = self.param_dict
+        selected_param = self.param_dict[self.key]
+        if value< selected_param["min"]:  
+            raise ValueError("The value is lower than the minimum")
+        elif "max" in parameter_dict.keys():
+            if value>parameter_dict["max"]: 
+                raise ValueError("The value is Bigger than the maximum value")
+        
+    def str_validate_choice(self, value):
+        selected_param = self.param_dict[self.key]
+        if not value in selected_param["options"]: 
+            raise ValueError("Choice is not an option! Please choose one of the following"+\
+                             ",".join(selected_param["options"]))
+
+    def select_choice(self, option): 
+        type_ = cliModelBase.param_dict.get(self.key).get("type")
+        if type_ is list: 
+            selection_type = str
+        else: 
+            selection_type = type_
+        try: 
+            value = selection_type(option)
+            self.validate_choice(value)
+        except: 
+            raise ValueError(f"Wrong Value Given! the type of value should be {selection_type}")
+        else: 
+            self.selected_parameters[self.key] = value
+            self.key=None
     
 
 
@@ -222,21 +255,23 @@ class DecisionTree(cliModelBase):
                     "default": None}}
     
 
+def list_available_models(): 
+    return [SVM, RandomForest, XGBoost, DecisionTree, NaiveBayes, LogisticRegression]
 
-
-class ModelEnsambler:
+class ModelEnsemble:
     categorical_features = ["Sex", "Embarked"]
     handle_missing_data_pipeline = {"Age": AgeHandler, "Embarked": EmbarkedHandler}
     encode_data_pipeline = Feature_Encoder
     feature_engineering_pipeline = {"Name": NameTransformer, "SimpleFeatures": SimpleFeatureGeneration, 
                                     "feature_dropper": FeatureDropper}
-    baseModel = RandomForest
     metrics = [("accuracy", accuracy_score), ("recall", recall_score), ("F1Score", f1_score)]
 
+
     
-    def __init__(self, model_parameter_kwargs, one_hot_encoded, categorical_encoded) -> None:
+    def __init__(self, model=RandomForest,  one_hot_encoded=[], categorical_encoded=["Sex", "Embarked"]) -> None:
         super().__init__()
-        running_model = self.baseModel.generate_model(model_parameter_kwargs)
+        self.baseModel = model if model else model
+        running_model = self.baseModel.generate_model()
         missing_data_pipeline = Pipeline([(key, obj()) for key, obj in self.handle_missing_data_pipeline.items()])
         feature_engineering_pipeline = Pipeline([(key, obj()) for key, obj in self.feature_engineering_pipeline.items()])
         self.general_pipeline = Pipeline([("handle missing data", missing_data_pipeline),

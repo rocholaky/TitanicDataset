@@ -20,34 +20,37 @@ class cliModelBase(ABC):
     classifier_name = None
     help_text = None
     param_dict = None
-    selected_parameters = None
+    selected_parameters = {}
     key = None
-    @property
-    def parameters(self): 
-        for a_key in  cliModelBase.param_dict.keys():
+    
+    def get_parameters(self): 
+        for a_key in  self.param_dict.keys():
             self.key = a_key
             yield a_key
     
-    def show_option(key): 
-        help_text = cliModelBase.param_dict.get(key).get("help_text")
-        type_ = cliModelBase.param_dict.get(key).get("type")
-        text = f"{key} ({type_}): {help_text}\n"
+    def show_option(self, key): 
+        help_text = self.param_dict.get(key).get("help text")
+        type_ = self.param_dict.get(key).get("type")
+        text = f"{key} ({type_}): {help_text},\n"
         if type_ is list: 
-            options = cliModelBase.param_dict.get(key).get("options")
+            options = self.param_dict.get(key).get("options")
             for i, a_option in enumerate(options): 
                 text += f"{i+1}. {a_option}\n"
-            text += "default"
+            default = self.param_dict.get(key).get("default")
+            text += f"default:{default}\n"
         else: 
-            min_ = cliModelBase.param_dict.get(key).get("min")
-            max_ = cliModelBase.param_dict.get(key).get("max", "no max")
-            default = cliModelBase.param_dict.get(key).get("default")
-            text += f"min={min_}\n\
-                    max={max_}\n,\
-                    default={default}"
+            min_ = self.param_dict.get(key).get("min")
+            max_ = self.param_dict.get(key).get("max", "no max")
+            default = self.param_dict.get(key).get("default")
+            text += f"min={min_},\nmax={max_},\ndefault={default}\n"
         return text
     
+    
     def generate_model(self):
-        return self.model_base(**self.select_choice)
+        if len(self.selected_parameters)==0:
+            return self.model_base()
+        else:
+            return self.model_base(**self.selected_parameters)
     
     def numeric_validate_choice(self, value): 
         parameter_dict = self.param_dict
@@ -63,16 +66,21 @@ class cliModelBase(ABC):
         if not value in selected_param["options"]: 
             raise ValueError("Choice is not an option! Please choose one of the following"+\
                              ",".join(selected_param["options"]))
+        
+
 
     def select_choice(self, option): 
-        type_ = cliModelBase.param_dict.get(self.key).get("type")
+        type_ = self.param_dict.get(self.key).get("type")
         if type_ is list: 
             selection_type = str
         else: 
             selection_type = type_
         try: 
             value = selection_type(option)
-            self.validate_choice(value)
+            if selection_type is str: 
+                self.str_validate_choice(value)
+            else: 
+                self.numeric_validate_choice(value)
         except: 
             raise ValueError(f"Wrong Value Given! the type of value should be {selection_type}")
         else: 
@@ -86,10 +94,10 @@ class cliModelBase(ABC):
 class SVM(cliModelBase): 
     model_base = SVC
     classifier_name = "SVM"
-    help_text = "SVM (Support Vector Machine) is a powerful machine learning algorithm used for classification and regression tasks.\
-                 It finds an optimal hyperplane to separate different classes in the data by maximizing the margin between them. \
-                SVM is effective for handling high-dimensional data and can handle both linear and non-linear relationships through \
-                kernel functions."
+    help_text = "SVM (Support Vector Machine) is a powerful machine learning algorithm used for classification and regression tasks.\n\
+                 It finds an optimal hyperplane to separate different classes in the data by maximizing the margin between them.\n \
+                SVM is effective for handling high-dimensional data and can handle both linear and non-linear relationships through\n \
+                kernel functions.\n"
     param_dict = {"C": {"help text": "regularization term", 
                         "type": float,
                         "min": 0,
@@ -101,16 +109,12 @@ class SVM(cliModelBase):
                     "degree": {"help text": "polynomial Degree of kernels (ONLY FOR POLY)", 
                                "type": int,
                                "min": 0,
-                               "default": 3},
-                    "gamma": {"help text": "Kernel coefficient for rbf, poly and sigmoid.",
-                              "type": float,
-                              "min": 0,
-                              "default": "scale"}}
+                               "default": 3}}
     
 class RandomForest(cliModelBase):
     model_base = RandomForestClassifier
     classifier_name = "Random Forest"
-    help_text = "Random Forest is an ensemble machine learning algorithm that uses multiple decision trees to make predictions\n.\
+    help_text = "Random Forest is an ensemble machine learning algorithm that uses multiple decision trees to make predictions.\n\
     It combines the predictions of individual trees to produce a final prediction. Random Forest is effective\n\
     for both classification and regression tasks. It handles high-dimensional data and can capture complex\n\
     relationships between features. It also provides measures of feature importance."
@@ -256,11 +260,12 @@ class DecisionTree(cliModelBase):
     
 
 def list_available_models(): 
-    return [SVM, RandomForest, XGBoost, DecisionTree, NaiveBayes, LogisticRegression]
+    return [(SVM, SVM.help_text), (RandomForest, RandomForest.help_text), (XGBoost, XGBoost.help_text), (DecisionTree, DecisionTree.help_text),
+                         (NaiveBayes, NaiveBayes.help_text), (LogisticRegression, LogisticRegression.help_text)]
 
 class ModelEnsemble:
     categorical_features = ["Sex", "Embarked"]
-    handle_missing_data_pipeline = {"Age": AgeHandler, "Embarked": EmbarkedHandler}
+    handle_missing_data_pipeline = {"Age": AgeHandler}
     encode_data_pipeline = Feature_Encoder
     feature_engineering_pipeline = {"Name": NameTransformer, "SimpleFeatures": SimpleFeatureGeneration, 
                                     "feature_dropper": FeatureDropper}
@@ -274,18 +279,27 @@ class ModelEnsemble:
         running_model = self.baseModel.generate_model()
         missing_data_pipeline = Pipeline([(key, obj()) for key, obj in self.handle_missing_data_pipeline.items()])
         feature_engineering_pipeline = Pipeline([(key, obj()) for key, obj in self.feature_engineering_pipeline.items()])
-        self.general_pipeline = Pipeline([("handle missing data", missing_data_pipeline),
-                                     ("feature engineering", feature_engineering_pipeline),
+        self.general_pipeline = Pipeline([("feature engineering", feature_engineering_pipeline),
+                                          ("handle missing data", missing_data_pipeline),
                                      ("encoder", self.encode_data_pipeline(one_hot_features=one_hot_encoded, categorical_features=categorical_encoded)),
                                      ("classifier", running_model)])
 
+    def eliminate_specific_data(self, X, y):
+        embarked_index = X[X["Embarked"].isna()].index
+        X.drop(index= embarked_index, inplace=True)
+        y.drop(index=embarked_index, inplace=True)
+        return X, y
 
     def generate_data(self): 
         X = pd.read_csv(os.path.join("Data", "train.csv"))
         y = X["Survived"]
-        X = X.drop(columns=["survived"])
+        X = X.drop(columns=["Survived"])
         X_train, X_test, y_train, y_test = train_test_split(
                                         X, y, test_size=0.33, random_state=42)
+        X_train.set_index("PassengerId", inplace=True)
+        X_test.set_index("PassengerId", inplace=True)
+        X_train, y_train =self.eliminate_specific_data(X_train, y_train)
+        X_test, y_test = self.eliminate_specific_data(X_test, y_test)
         return X_train, X_test, y_train, y_test
 
     def fit(self): 

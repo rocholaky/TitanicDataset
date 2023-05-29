@@ -3,6 +3,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.impute import SimpleImputer
 
 
+
 class AgeHandler(BaseEstimator, TransformerMixin): 
     AdultAge = None
     ChildrenAge = None
@@ -20,11 +21,13 @@ class AgeHandler(BaseEstimator, TransformerMixin):
 
 class EmbarkedHandler(BaseEstimator, TransformerMixin): 
     def fit(self, X, y=None): 
+        embarked_index = X[X["Embarked"].isna()].index
+        X.drop(index= embarked_index, inplace=True)
+        y.drop(index=embarked_index, inplace=True)
         return self
     
     def transform(self, X): 
-        embarked_index = X[X["Embarked"].isna()].index
-        X.drop(index= embarked_index, inplace=True)
+        
         return X
     
 

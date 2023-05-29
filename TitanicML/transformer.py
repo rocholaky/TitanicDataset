@@ -15,18 +15,21 @@ class NameTransformer(BaseEstimator, TransformerMixin):
         else: 
             return 0
         
-    def analyze_men_marriage(self, passenger): 
-        grouped_families_list =grouped_families_list[grouped_families_list["PassengerId"]!=passenger["PassengerId"]]
-        has_wife = np.logical_and(grouped_families_list["isAdult"],\
-                             (grouped_families_list["Sex"]=="female"),
-                            grouped_families_list["isMarried"])
-        justSp = passenger["SibSp"]==1
-        return any(has_wife)*justSp
+    def analyze_men_marriage(self, passenger, grouped_families_list): 
+        grouped_families_list = grouped_families_list[grouped_families_list.index != passenger.name]
+        has_wife = np.logical_and(grouped_families_list["isAdult"],
+                                np.logical_and(grouped_families_list["Sex"] == "female",
+                                                grouped_families_list["isMarried"]))
+        justSp = passenger["SibSp"] == 1
+        return any(has_wife) * justSp
 
     def Generate_marriage(self, df):
         df["isMarried"] = df.apply(lambda x: int("(" in x["Name"]), axis=1)
         married_candidates = df[(df["Sex"]=="male") & (df["isAdult"])]
-        are_married = married_candidates.apply(lambda x: self.analyze_men_marriage(x, df.iloc[list(self.LastNameGroups.groups[x["familyId"]])]),axis=1)
+        are_married = married_candidates.apply(
+                        lambda x: self.analyze_men_marriage(
+                            x, df.loc[df["familyId"].eq(x["familyId"])]
+                        ),axis=1)
         df.loc[married_candidates.index, "isMarried"]= are_married
         return df
 
@@ -47,7 +50,7 @@ class Family_size:
     key = "Family_size"
     
     def __call__(self, df):
-       df.apply(lambda x: x["SibSp"]+x["Parch"]+1, axis=1)
+       df["familySize"] = df.apply(lambda x: x["SibSp"]+x["Parch"]+1, axis=1)
        return df
     
 class isAlone:

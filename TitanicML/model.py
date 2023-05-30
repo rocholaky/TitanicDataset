@@ -67,7 +67,10 @@ class cliModelBase(ABC):
             raise ValueError("Choice is not an option! Please choose one of the following"+\
                              ",".join(selected_param["options"]))
         
-
+    def None_validate_choice(self): 
+        selected_param = self.param_dict[self.key]
+        if not selected_param["default"] is None: 
+            raise ValueError("None Value cant be selected here")
 
     def select_choice(self, option): 
         type_ = self.param_dict.get(self.key).get("type")
@@ -76,9 +79,11 @@ class cliModelBase(ABC):
         else: 
             selection_type = type_
         try: 
-            value = selection_type(option)
+            value = selection_type(option) if option else option
             if selection_type is str: 
                 self.str_validate_choice(value)
+            elif selection_type is int and value is None:
+                self.None_validate_choice()
             else: 
                 self.numeric_validate_choice(value)
         except: 
@@ -100,7 +105,7 @@ class SVM(cliModelBase):
                 kernel functions.\n"
     param_dict = {"C": {"help text": "regularization term", 
                         "type": float,
-                        "min": 0,
+                        "min": 0.01,
                         "default":1},
                     "kernel": {"help text": "type of kernel to use in order to apply the kernel Trick", 
                                "type": list, 
@@ -110,6 +115,10 @@ class SVM(cliModelBase):
                                "type": int,
                                "min": 0,
                                "default": 3}}
+    
+    def __init__(self):
+        super().__init__()
+        self.selected_parameters = {}
     
 class RandomForest(cliModelBase):
     model_base = RandomForestClassifier
@@ -138,6 +147,9 @@ class RandomForest(cliModelBase):
                             "type": int,
                             "min": 1,
                             "default": 1}}
+    def __init__(self):
+        super().__init__()
+        self.selected_parameters = {}
             
 class LogisticRegression(cliModelBase):
         model_base = LogisticRegression
@@ -163,6 +175,10 @@ class LogisticRegression(cliModelBase):
         "min": 1,
         "default": 100}}
 
+        def __init__(self):
+            super().__init__()
+            self.selected_parameters = {}
+
 class NaiveBayes(cliModelBase):
     model_base = GaussianNB
     classifier_name = "Naive Bayes"
@@ -170,9 +186,7 @@ class NaiveBayes(cliModelBase):
     of independence between features. It is commonly used for binary classification problems and\n\
     works well with categorical or numerical features. Naive Bayes is fast and efficient, making\n\
     it suitable for large datasets."
-    param_dict = {"priors": {"help text": "prior probabilities of the classes",
-                                    "type": list,
-                                    "default": None},
+    param_dict = {
         "var_smoothing": {"help text": "portion of the largest variance of all features added to\n\
                                         variances for calculation stability",
                             "type": float,
@@ -225,6 +239,9 @@ class XGBoost(cliModelBase):
                     "type": float,
                     "min": 0,
                     "default": 1}}
+    def __init__(self):
+        super().__init__()
+        self.selected_parameters = {}
     
 
 class DecisionTree(cliModelBase):
@@ -257,6 +274,9 @@ class DecisionTree(cliModelBase):
                     "type": list,
                     "options": ["auto", "sqrt", "log2", None],
                     "default": None}}
+    def __init__(self):
+        super().__init__()
+        self.selected_parameters = {}
     
 
 def list_available_models(): 
@@ -273,9 +293,9 @@ class ModelEnsemble:
 
 
     
-    def __init__(self, model=RandomForest,  one_hot_encoded=[], categorical_encoded=["Sex", "Embarked"]) -> None:
+    def __init__(self, model=RandomForest(),  one_hot_encoded=[], categorical_encoded=["Sex", "Embarked"]) -> None:
         super().__init__()
-        self.baseModel = model if model else model
+        self.baseModel = model
         self.classifier_model = self.baseModel.generate_model()
         missing_data_pipeline = Pipeline([(key, obj()) for key, obj in self.handle_missing_data_pipeline.items()])
         feature_engineering_pipeline = Pipeline([(key, obj()) for key, obj in self.feature_engineering_pipeline.items()])

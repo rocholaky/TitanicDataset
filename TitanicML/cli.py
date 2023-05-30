@@ -15,7 +15,6 @@ def list_possible_models():
                 assert 0<inputted_value<len(available_models)+1, "The selected value is not a correct option number"
                 base_model = available_models[inputted_value-1][0]()
             except Exception as e: 
-                print(str(e))
                 pass
             else: 
                 break        
@@ -52,9 +51,10 @@ class personalizedTrain(Actions):
         one_hot_encoding = []
         categorical_encoding = []
         for a_feature in ModelEnsemble.categorical_features:
-            inp = input(f"For Feature {a_feature} would you prefer what kind of encoding:\n1. One-Hot Encoding\n2. Categorical Encoding\nSelect a number:")
+           
             verified = False
             while not verified: 
+                inp = input(f"For Feature {a_feature} would you prefer what kind of encoding:\n1. One-Hot Encoding\n2. Categorical Encoding\nSelect a number:")
                 try: 
                     assert inp.isnumeric()
                     assert int(inp)==2 or int(inp)==1
@@ -86,30 +86,16 @@ class Train(Actions):
 
     def apply_action(self, titanic_obj):
         base_model = list_possible_models()
-        the_model = ModelEnsemble(base_model)
+        the_model = ModelEnsemble()
         the_model, results = the_model.fit()
         titanic_obj.set_model(the_model)
         print("Training Results:")
         for key, value in results.items():
             print(f"{key}:{value}\n")
 
-        
-    
-
-class Save(Actions):
-    action_name= "save"
-    def apply_action(self, TitanicCli_obj, path):
-        pass
-        
-    
-class Predict(Actions):
-    action_name="predict"
-    def apply_action(self, *args):
-        return super().apply_action(*args)
-
 
 class TitanicCli:
-    actions = {"train_personalized": personalizedTrain, "train": Train, "predict": Predict}
+    actions = {"train_personalized": personalizedTrain, "train": Train}
     model = None
     selected_action = None
     def __init__(self, action) -> None:
@@ -121,6 +107,6 @@ class TitanicCli:
             selected_action = self.actions[action_name]()
             selected_action.apply_action(self)
         else: 
-            raise ValueError("The selected Argument is not one of the provided options, you can choose between: \n"+ "\n".join([action.action_name for action in self.actions]))
+            raise ValueError("The selected Argument is not one of the provided options, you can choose between: \n"+ "\n".join([action_obj.action_name for action, action_obj in self.actions.items()]))
     def set_model(self, a_model):
         self.model = a_model

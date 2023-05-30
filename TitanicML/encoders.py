@@ -14,7 +14,7 @@ class Feature_Encoder(BaseEstimator, TransformerMixin):
         self.one_hot_encoders = []
         self.label_encoders = []
         for a_one_hot_f in self.one_hot_features: 
-            column_data = X[a_one_hot_f].unique().tolist()
+            column_data = X[a_one_hot_f].unique().reshape(-1, 1)
             self.one_hot_encoders.append(OneHotEncoder().fit(column_data))
         for a_categorical_f in self.categorical_features: 
              column_data = X[a_categorical_f].unique().tolist()

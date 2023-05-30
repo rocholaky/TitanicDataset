@@ -276,13 +276,12 @@ class ModelEnsemble:
     def __init__(self, model=RandomForest,  one_hot_encoded=[], categorical_encoded=["Sex", "Embarked"]) -> None:
         super().__init__()
         self.baseModel = model if model else model
-        running_model = self.baseModel.generate_model()
+        self.classifier_model = self.baseModel.generate_model()
         missing_data_pipeline = Pipeline([(key, obj()) for key, obj in self.handle_missing_data_pipeline.items()])
         feature_engineering_pipeline = Pipeline([(key, obj()) for key, obj in self.feature_engineering_pipeline.items()])
-        self.general_pipeline = Pipeline([("feature engineering", feature_engineering_pipeline),
+        self.general_transform_pipeline = Pipeline([("feature engineering", feature_engineering_pipeline),
                                           ("handle missing data", missing_data_pipeline),
-                                     ("encoder", self.encode_data_pipeline(one_hot_features=one_hot_encoded, categorical_features=categorical_encoded)),
-                                     ("classifier", running_model)])
+                                     ("encoder", self.encode_data_pipeline(one_hot_features=one_hot_encoded, categorical_features=categorical_encoded))])
 
     def eliminate_specific_data(self, X, y):
         embarked_index = X[X["Embarked"].isna()].index
@@ -292,21 +291,26 @@ class ModelEnsemble:
 
     def generate_data(self): 
         X = pd.read_csv(os.path.join("Data", "train.csv"))
+        X = X.set_index("PassengerId")
         y = X["Survived"]
         X = X.drop(columns=["Survived"])
         X_train, X_test, y_train, y_test = train_test_split(
                                         X, y, test_size=0.33, random_state=42)
-        X_train.set_index("PassengerId", inplace=True)
-        X_test.set_index("PassengerId", inplace=True)
         X_train, y_train =self.eliminate_specific_data(X_train, y_train)
         X_test, y_test = self.eliminate_specific_data(X_test, y_test)
-        return X_train, X_test, y_train, y_test
+        return X, y, X_train, X_test, y_train, y_test
 
     def fit(self): 
-        X_train, X_test, y_train, y_test = self.generate_data()
-        self.general_pipeline.fit(X_train, y_train)
-        predict = self.general_pipeline.predict(X_test)
+        X, y, X_train, X_test, y_train, y_test = self.generate_data()
+        self.general_transform_pipeline.fit(X)
+        X_train = self.general_transform_pipeline.transform(X_train)
+        X_test = self.general_transform_pipeline.transform(X_test)
+        self.classifier_model.fit(X_train,y_train)
+        predict = self.classifier_model.predict(X_test)
         results = {}
         for metric_name, a_metric in self.metrics:
             results[metric_name]= a_metric(y_test, predict)
-        return self.general_pipeline, results
+
+        final_model = Pipeline([("DataTransformer", self.general_transform_pipeline),
+                                ("classifier", self.classifier_model)])
+        return final_model, results

@@ -17,9 +17,9 @@ class NameTransformer(BaseEstimator, TransformerMixin):
         
     def analyze_men_marriage(self, passenger, grouped_families_list): 
         grouped_families_list = grouped_families_list[grouped_families_list.index != passenger.name]
-        has_wife = np.logical_and(grouped_families_list["isAdult"],
-                                np.logical_and(grouped_families_list["Sex"] == "female",
-                                                grouped_families_list["isMarried"]))
+        has_wife = np.logical_and(grouped_families_list["isAdult"],\
+                             (grouped_families_list["Sex"]=="female"),
+                            grouped_families_list["isMarried"])
         justSp = passenger["SibSp"] == 1
         return any(has_wife) * justSp
 
@@ -34,11 +34,12 @@ class NameTransformer(BaseEstimator, TransformerMixin):
         return df
 
     def fit(self, X, y=None): 
-        # generate new column called LastName:
-        self.family_last_name = X.apply(lambda x: str((x["Name"].split(",")[0], x["Ticket"])), axis=1)
+        
         return self
     
     def transform(self, X): 
+        # generate new column called LastName:
+        self.family_last_name = X.apply(lambda x: str((x["Name"].split(",")[0], x["Ticket"])), axis=1)
         X["familyId"] = self.family_last_name
         self.LastNameGroups = X.groupby(["familyId"])
         X["isAdult"] = X.apply(lambda x: int(self.Analyze_titles(x) or x["Age"]>=18), axis=1)

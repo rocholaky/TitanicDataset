@@ -49,6 +49,13 @@ class CLITesting(unittest.TestCase):
     def test_incorrect_titanic_action(self): 
         self.assertRaises(ValueError, TitanicCli, "train!")
         self.assertRaises(ValueError, TitanicCli, "predict")
+
+    def test_grid_search(self): 
+        with patch('builtins.input', side_effect=["2"]):
+            try: 
+                cli_obj = TitanicCli("grid_search")
+            except: 
+                unittest.fail('The model failed to generate the gridsearch')
         
 
 

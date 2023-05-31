@@ -17,7 +17,8 @@ def list_possible_models():
             except Exception as e: 
                 pass
             else: 
-                break        
+                break
+        print(f"You selected the {available_models[inputted_value-1][0].classifier_name} model!")        
         return base_model
 
 class Actions(ABC):
@@ -26,8 +27,8 @@ class Actions(ABC):
     def apply_action(self, *args): 
         raise NotImplemented()
 
-class personalizedTrain(Actions):
-    action_name= "personalized_train"
+class TrainPersonalized(Actions):
+    action_name= "train_personalized"
     
     def __init__(self) -> None:
         super().__init__()
@@ -80,22 +81,36 @@ class personalizedTrain(Actions):
         print("Training Results:")
         for key, value in results.items():
             print(f"{key}:{value}\n")
+
+class GridSearch(Actions): 
+    action_name = "grid_search"
+    def apply_action(self, titanic_obj):
+            base_model = list_possible_models()
+            the_model = ModelEnsemble(base_model)
+            the_model, results = the_model.grid_search()
+            titanic_obj.set_model(the_model)
+            print("Results on Test Set:")
+            print(f"best parameters: {the_model[-1].best_params_}")
+            for key, value in results.items():
+                print(f"{key}:{value}\n")
+
+            
         
 class Train(Actions):
     action_name = "train"
 
     def apply_action(self, titanic_obj):
         base_model = list_possible_models()
-        the_model = ModelEnsemble()
+        the_model = ModelEnsemble(base_model)
         the_model, results = the_model.fit()
         titanic_obj.set_model(the_model)
-        print("Training Results:")
+        print("Results on Test Set:")
         for key, value in results.items():
             print(f"{key}:{value}\n")
 
 
 class TitanicCli:
-    actions = {"train_personalized": personalizedTrain, "train": Train}
+    actions = {"train_personalized": TrainPersonalized, "train": Train, "grid_search": GridSearch}
     model = None
     selected_action = None
     def __init__(self, action) -> None:

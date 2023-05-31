@@ -3,7 +3,6 @@ from sklearn.svm import SVC
 from sklearn.naive_bayes import GaussianNB
 import xgboost as xgb
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from abc import ABC
 from sklearn.pipeline import Pipeline, make_pipeline
@@ -14,6 +13,7 @@ from sklearn.model_selection import train_test_split
 import pandas as pd
 import os
 from sklearn.metrics import accuracy_score, recall_score, f1_score
+from sklearn.model_selection import GridSearchCV
 
 class cliModelBase(ABC): 
     model_base= None
@@ -48,10 +48,13 @@ class cliModelBase(ABC):
     
     def generate_model(self):
         if len(self.selected_parameters)==0:
-            return self.model_base()
+            model =  self.model_base()
         else:
-            return self.model_base(**self.selected_parameters)
-    
+            model =  self.model_base(**self.selected_parameters)
+        random_state = 42
+        model.random_state = random_state
+        return model
+
     def numeric_validate_choice(self, value): 
         parameter_dict = self.param_dict
         selected_param = self.param_dict[self.key]
@@ -91,7 +94,24 @@ class cliModelBase(ABC):
         else: 
             self.selected_parameters[self.key] = value
             self.key=None
-    
+
+    def generate_grid(self): 
+        grid = {}
+        for a_param, value in self.param_dict.items():
+            type_ = value["type"]
+            if type_ is list: 
+                grid[a_param] = tuple(value["options"])
+            else: 
+                min_ = value.get("min", 0)
+                default = value["default"] if not value["default"] is None else 2*(min_+1)
+                max_ = value.get("max", 2*default)
+                n_search = value.get("n_search")
+                if type_ is int: 
+                    grid[a_param] = list(set([default] + np.linspace(start=min_, stop=min(max_, 2*default), num=n_search, dtype=int).tolist()))
+                else: 
+                    grid[a_param] = list(set([default] + np.linspace(start=min_, stop=min(max_, 10*default), num=n_search, dtype=float).tolist()))
+
+        return grid
 
 
 
@@ -106,7 +126,8 @@ class SVM(cliModelBase):
     param_dict = {"C": {"help text": "regularization term", 
                         "type": float,
                         "min": 0.01,
-                        "default":1},
+                        "default":1, 
+                        "n_search": 4},
                     "kernel": {"help text": "type of kernel to use in order to apply the kernel Trick", 
                                "type": list, 
                                "options": ["linear", "poly", "rbf", "sigmoid"],
@@ -114,7 +135,8 @@ class SVM(cliModelBase):
                     "degree": {"help text": "polynomial Degree of kernels (ONLY FOR POLY)", 
                                "type": int,
                                "min": 0,
-                               "default": 3}}
+                               "default": 3,
+                               "n_search": 2}}
     
     def __init__(self):
         super().__init__()
@@ -127,57 +149,48 @@ class RandomForest(cliModelBase):
     It combines the predictions of individual trees to produce a final prediction. Random Forest is effective\n\
     for both classification and regression tasks. It handles high-dimensional data and can capture complex\n\
     relationships between features. It also provides measures of feature importance."
-    param_dict = {"n_estimators": {"help text": "number of trees in the forest",
-                                    "type": int,
-                                    "min": 1,
-                                    "default": 100},
-            "criterion": {"help text": "function to measure the quality of a split",
+    param_dict = {
+        "n_estimators": {
+            "help text": "number of trees in the forest",
+            "type": int,
+            "min": 1,
+            "default": 100,
+            "n_search": 3
+        },
+        "criterion": {
+            "help text": "function to measure the quality of a split",
             "type": list,
             "options": ["gini", "entropy"],
-            "default": "gini"},
-    "max_depth": {"help text": "maximum depth of the trees",
-                            "type": int,
-                            "min": 1,
-                            "default": None},
-    "min_samples_split": {"help text": "minimum number of samples required to split an internal node",
-                                "type": int,
-                                "min": 2,
-                                "default": 2},
-    "min_samples_leaf": {"help text": "minimum number of samples required to be at a leaf node",
-                            "type": int,
-                            "min": 1,
-                            "default": 1}}
+            "default": "gini",
+            "n_search": 1
+        },
+        "max_depth": {
+            "help text": "maximum depth of the trees",
+            "type": int,
+            "min": 1,
+            "default": None,
+            "n_search": 2
+        },
+        "min_samples_split": {
+            "help text": "minimum number of samples required to split an internal node",
+            "type": int,
+            "min": 2,
+            "default": 2,
+            "n_search": 2
+        },
+        "min_samples_leaf": {
+            "help text": "minimum number of samples required to be at a leaf node",
+            "type": int,
+            "min": 1,
+            "default": 1,
+            "n_search": 1
+        }
+    }
+
     def __init__(self):
         super().__init__()
         self.selected_parameters = {}
-            
-class LogisticRegression(cliModelBase):
-        model_base = LogisticRegression
-        classifier_name = "Logistic Regression"
-        help_text = "Logistic Regression is a popular classification algorithm that models the relationship between the\n\
-        independent variables and the dependent binary outcome using the logistic function. It is used to\n\
-        predict the probability of an event occurring. Logistic Regression is suitable for binary classification\n\
-        problems and can be extended to handle multi-class classification with appropriate techniques."
-        param_dict = {"penalty": {"help text": "type of regularization penalty",
-        "type": list,
-        "options": ["l1", "l2"],
-        "default": "l2"},
-        "C": {"help text": "inverse of regularization strength",
-        "type": float,
-        "min": 0,
-        "default": 1.0},
-        "solver": {"help text": "algorithm to use in the optimization problem",
-        "type": list,
-        "options": ["newton-cg", "lbfgs", "liblinear", "sag", "saga"],
-        "default": "lbfgs"},
-        "max_iter": {"help text": "maximum number of iterations",
-        "type": int,
-        "min": 1,
-        "default": 100}}
 
-        def __init__(self):
-            super().__init__()
-            self.selected_parameters = {}
 
 class NaiveBayes(cliModelBase):
     model_base = GaussianNB
@@ -187,12 +200,20 @@ class NaiveBayes(cliModelBase):
     works well with categorical or numerical features. Naive Bayes is fast and efficient, making\n\
     it suitable for large datasets."
     param_dict = {
-        "var_smoothing": {"help text": "portion of the largest variance of all features added to\n\
-                                        variances for calculation stability",
-                            "type": float,
-                            "min": 0,
-                            "default": 1e-9}}
-    
+        "var_smoothing": {
+            "help text": "portion of the largest variance of all features added to\n\
+                            variances for calculation stability",
+            "type": float,
+            "min": 1e-9,
+            "default": 1e-9,
+            "n_search": 1
+        }
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.selected_parameters = {}
+
 
 class XGBoost(cliModelBase):
     model_base = xgb.XGBClassifier
@@ -203,46 +224,63 @@ class XGBoost(cliModelBase):
     for its high performance, scalability, and ability to handle complex datasets with large\n\
     numbers of features."
     param_dict = {
-        "max_depth": {"help text": "maximum depth of a tree",
-                                "type": int,
-                                "min": 1,
-                                "default": 3},
+        "max_depth": {
+            "help text": "maximum depth of a tree",
+            "type": int,
+            "min": 1,
+            "default": 3,
+            "n_search": 3
+        },
         "learning_rate": {
-                        "help text": "step size shrinkage used to prevent overfitting",
-                        "type": float,
-                        "min": 0,
-                        "default": 0.1},
+            "help text": "step size shrinkage used to prevent overfitting",
+            "type": float,
+            "min": 0.01,
+            "default": 0.1,
+            "n_search": 2
+        },
         "n_estimators": {
-                        "help text": "number of boosted trees to fit",
-                        "type": int,
-                        "min": 1,
-                        "default": 100},
-    "subsample": {
-                "help text": "subsample ratio of the training instances",
-                "type": float,
-                "min": 0,
-                "max": 1,
-                "default": 1},
-    "colsample_bytree": {
-                    "help text": "subsample ratio of columns when constructing each tree",
-                    "type": float,
-                    "min": 0,
-                    "max": 1,
-                    "default": 1},
-    "reg_alpha": {
-                "help text": "L1 regularization term on weights",
-                "type": float,
-                "min": 0,
-                "default": 0},
-    "reg_lambda": {
-                    "help text": "L2 regularization term on weights",
-                    "type": float,
-                    "min": 0,
-                    "default": 1}}
+            "help text": "number of boosted trees to fit",
+            "type": int,
+            "min": 1,
+            "default": 100,
+            "n_search": 3
+        },
+        "subsample": {
+            "help text": "subsample ratio of the training instances",
+            "type": float,
+            "min": 0.01,
+            "max": 1,
+            "default": 1,
+            "n_search": 2
+        },
+        "colsample_bytree": {
+            "help text": "subsample ratio of columns when constructing each tree",
+            "type": float,
+            "min": 0.01,
+            "max": 1,
+            "default": 1,
+            "n_search": 2
+        },
+        "reg_alpha": {
+            "help text": "L1 regularization term on weights",
+            "type": float,
+            "min": 0,
+            "default": 0,
+            "n_search": 1
+        },
+        "reg_lambda": {
+            "help text": "L2 regularization term on weights",
+            "type": float,
+            "min": 0,
+            "default": 1,
+            "n_search": 1
+        }
+    }
+
     def __init__(self):
         super().__init__()
         self.selected_parameters = {}
-    
+
 
 class DecisionTree(cliModelBase):
     model_base = DecisionTreeClassifier
@@ -252,36 +290,53 @@ class DecisionTree(cliModelBase):
     provides the most information gain or Gini impurity reduction. Decision trees are easy to understand,\n\
     interpret, and visualize. They can handle both categorical and numerical features and can capture\n\
     non-linear relationships in the data."
-    param_dict = {"criterion": {"help text": "function to measure the quality of a split",
-                                "type": list,
-                                "options": ["gini", "entropy"],
-                                "default": "gini"},
-                "max_depth": {"help text": "maximum depth of the tree",
-                                "type": int,
-                                "min": 1,
-                                "default": None},
-                "min_samples_split": {
-                    "help text": "minimum number of samples required to split an internal node",
-                    "type": int,
-                    "min": 2,
-                    "default": 2},
-    "min_samples_leaf": {
-        "help text": "minimum number of samples required to be at a leaf node",
-                    "type": int,
-                    "min": 1,
-                    "default": 1},
-    "max_features": {"help text": "number of features to consider when looking for the best split",
-                    "type": list,
-                    "options": ["auto", "sqrt", "log2", None],
-                    "default": None}}
+    param_dict = {
+        "criterion": {
+            "help text": "function to measure the quality of a split",
+            "type": list,
+            "options": ["gini", "entropy"],
+            "default": "gini",
+            "n_search": 1
+        },
+        "max_depth": {
+            "help text": "maximum depth of the tree",
+            "type": int,
+            "min": 1,
+            "default": None,
+            "n_search": 2
+        },
+        "min_samples_split": {
+            "help text": "minimum number of samples required to split an internal node",
+            "type": int,
+            "min": 2,
+            "default": 2,
+            "n_search": 2
+        },
+        "min_samples_leaf": {
+            "help text": "minimum number of samples required to be at a leaf node",
+            "type": int,
+            "min": 1,
+            "default": 1,
+            "n_search": 1
+        },
+        "max_features": {
+            "help text": "number of features to consider when looking for the best split",
+            "type": list,
+            "options": ["sqrt", "log2"],
+            "default": "sqrt",
+            "n_search": 1
+        }
+    }
+
     def __init__(self):
         super().__init__()
-        self.selected_parameters = {}
+        self
+
     
 
 def list_available_models(): 
     return [(SVM, SVM.help_text), (RandomForest, RandomForest.help_text), (XGBoost, XGBoost.help_text), (DecisionTree, DecisionTree.help_text),
-                         (NaiveBayes, NaiveBayes.help_text), (LogisticRegression, LogisticRegression.help_text)]
+                         (NaiveBayes, NaiveBayes.help_text)]
 
 class ModelEnsemble:
     categorical_features = ["Sex", "Embarked"]
@@ -320,17 +375,40 @@ class ModelEnsemble:
         X_test, y_test = self.eliminate_specific_data(X_test, y_test)
         return X, y, X_train, X_test, y_train, y_test
 
-    def fit(self): 
+    def prepare_data(self):
         X, y, X_train, X_test, y_train, y_test = self.generate_data()
         self.general_transform_pipeline.fit(X)
         X_train = self.general_transform_pipeline.transform(X_train)
         X_test = self.general_transform_pipeline.transform(X_test)
-        self.classifier_model.fit(X_train,y_train)
-        predict = self.classifier_model.predict(X_test)
+        return X_train, X_test, y_train, y_test
+    
+    def calculate_metrics(self, y_test, y_pred):
         results = {}
         for metric_name, a_metric in self.metrics:
-            results[metric_name]= a_metric(y_test, predict)
+            results[metric_name]= a_metric(y_test, y_pred)
+        return results
 
+    def fit(self): 
+        X_train, X_test, y_train, y_test = self.prepare_data()
+        self.classifier_model.fit(X_train,y_train)
+        predict = self.classifier_model.predict(X_test)
+        results = self.calculate_metrics(y_test, predict)
         final_model = Pipeline([("DataTransformer", self.general_transform_pipeline),
                                 ("classifier", self.classifier_model)])
+        final_model.features_names = X_train.columns
         return final_model, results
+    
+
+    def grid_search(self): 
+        X_train, X_test, y_train, y_test = self.prepare_data()
+        grid_search_params = self.baseModel.generate_grid()
+        classifier = GridSearchCV(self.classifier_model, grid_search_params, scoring='f1_macro', cv=3)
+        classifier.fit(X_train, y_train)
+        predict = classifier.predict(X_test)
+        results = self.calculate_metrics(y_test, predict)
+        final_model = Pipeline([("DataTransformer", self.general_transform_pipeline),
+                                ("classifier", classifier)])
+        final_model.features_names = X_train.columns
+        return final_model, results
+
+

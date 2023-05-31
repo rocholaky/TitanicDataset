@@ -27,7 +27,6 @@ class EmbarkedHandler(BaseEstimator, TransformerMixin):
         return self
     
     def transform(self, X): 
-        
         return X
     
 

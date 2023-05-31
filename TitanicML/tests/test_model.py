@@ -40,6 +40,42 @@ class ModelEnsembleTest(unittest.TestCase):
             self.assertIsNotNone(help_text)
             self.assertIsNotNone(model.param_dict)
 
+    ## Test default training: 
+    def test_default_training(self): 
+        available_models = list_available_models()
+        # Verify that each model in the list has a classifier name and help text
+        for model, _ in available_models:
+            model = model()
+            m = ModelEnsemble(model)
+            classifier_model, results = m.fit()
+            
+            # Verify that the classifier model is not None
+            self.assertIsNotNone(classifier_model)
+
+            # Verify that the results dictionary contains the expected metrics
+            self.assertIn("accuracy", results)
+            self.assertIn("recall", results)
+            self.assertIn("F1Score", results)
+
+    ## Test default training: 
+    def test_grid_search(self): 
+        # testing just one model: 
+        available_models = [(XGBoost, XGBoost.help_text)]
+        # Verify that each model in the list has a classifier name and help text
+        for model, _ in available_models:
+            model = model()
+            m = ModelEnsemble(model)
+            classifier_model, results = m.grid_search()
+            
+            # Verify that the classifier model is not None
+            self.assertIsNotNone(classifier_model)
+
+            # Verify that the results dictionary contains the expected metrics
+            self.assertIn("accuracy", results)
+            self.assertIn("recall", results)
+            self.assertIn("F1Score", results)
+
+    ## Testing personalized training: 
     def test_personalized_SVM(self):
         model = SVM()
         model.selected_parameters = {
@@ -52,31 +88,6 @@ class ModelEnsembleTest(unittest.TestCase):
         self.assertEqual(build_classifier.C, 1.0)
         self.assertEqual(build_classifier.kernel, "rbf")
         self.assertEqual(build_classifier.degree, 3)
-        m = ModelEnsemble(model)
-        classifier_model, results = m.fit()
-        
-        # Verify that the classifier model is not None
-        self.assertIsNotNone(classifier_model)
-
-        # Verify that the results dictionary contains the expected metrics
-        self.assertIn("accuracy", results)
-        self.assertIn("recall", results)
-        self.assertIn("F1Score", results)
-
-    def test_personalized_LogisticRegression(self):
-        model = LogisticRegression()
-        model.selected_parameters = {
-            "penalty": "l2",
-            "C": 1.0,
-            "solver": "lbfgs",
-            "max_iter": 100
-        }
-        build_classifier = model.generate_model()
-        self.assertIsNotNone(build_classifier)
-        self.assertEqual(build_classifier.penalty, "l2")
-        self.assertEqual(build_classifier.C, 1.0)
-        self.assertEqual(build_classifier.solver, "lbfgs")
-        self.assertEqual(build_classifier.max_iter, 100)
         m = ModelEnsemble(model)
         classifier_model, results = m.fit()
         
@@ -173,7 +184,7 @@ class ModelEnsembleTest(unittest.TestCase):
             "max_depth": None,
             "min_samples_split": 2,
             "min_samples_leaf": 1,
-            "max_features": None
+            "max_features": "sqrt"
         }
         build_classifier = model.generate_model()
         self.assertIsNotNone(build_classifier)
@@ -181,7 +192,7 @@ class ModelEnsembleTest(unittest.TestCase):
         self.assertIsNone(build_classifier.max_depth)
         self.assertEqual(build_classifier.min_samples_split, 2)
         self.assertEqual(build_classifier.min_samples_leaf, 1)
-        self.assertIsNone(build_classifier.max_features)
+        self.assertEqual(build_classifier.max_features, "sqrt")
         m = ModelEnsemble(model)
         classifier_model, results = m.fit()
         
